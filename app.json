@@ -24,6 +24,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir que Scan acceda a tu cámara para tomar fotos."
+        }
+      ],
+      "expo-font"
+    ]
   }
 }
