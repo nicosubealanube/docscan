@@ -6,6 +6,7 @@ import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
+import ImageCropper from './components/ImageCropper';
 
 const { StorageAccessFramework } = FileSystem;
 
@@ -17,6 +18,7 @@ export default function App() {
   const [capturedImage, setCapturedImage] = useState(null);
   const [rotation, setRotation] = useState(0);
   const [printing, setPrinting] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -66,8 +68,40 @@ export default function App() {
     setIsCameraOpen(true);
   };
 
+  const handleCrop = async (cropData) => {
+    setIsCropping(false);
+    setProcessing(true);
+    try {
+      // Rotate first if needed (should have been handled before entering crop, but double check)
+      let sourceUri = capturedImage.uri;
+      if (rotation !== 0) {
+        const rotated = await ImageManipulator.manipulateAsync(
+          sourceUri,
+          [{ rotate: rotation }],
+          { base64: true }
+        );
+        sourceUri = rotated.uri;
+        setRotation(0);
+      }
+
+      // Perform Crop
+      const cropped = await ImageManipulator.manipulateAsync(
+        sourceUri,
+        [{ crop: cropData }],
+        { base64: true, compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      setCapturedImage(cropped);
+    } catch (e) {
+      console.error("Crop error", e);
+      Alert.alert("Error", "No se pudo recortar la imagen.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const processImageForSave = async () => {
-    // Basic crop implementation (Actually applies Rotation to file)
+    // If rotation is still pending (user didn't crop), apply it now
     if (rotation !== 0) {
       try {
         const result = await ImageManipulator.manipulateAsync(
@@ -94,35 +128,35 @@ export default function App() {
 
       const filename = "escaneo.pdf";
       if (Platform.OS === 'web') {
-        // Attempt to set title for filename
         document.title = "escaneo";
       }
 
-      // We use object-fit: contain to ensure full image visibility
       const html = `
+        <!DOCTYPE html>
         <html>
-          <body style="margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: white;">
-            <img 
-              src="data:image/jpeg;base64,${processedImage.base64}" 
-              style="
-                max-width: 100vw; 
-                max-height: 100vh;
-                object-fit: contain;
-              " 
-            />
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+            <style>
+              body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: white; overflow: hidden; }
+              #content { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+              img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            <div id="content">
+              <img src="data:image/jpeg;base64,${processedImage.base64}" />
+            </div>
           </body>
         </html>
       `;
 
       if (Platform.OS === 'web') {
         await Print.printAsync({ html });
-        // NOTE: We do NOT reset capturedImage automatically here to prevent unmount
         setPrinting(false);
         setProcessing(false);
         return;
       }
 
-      // Android/iOS Logic
       const { uri: tempPdfUri } = await Print.printToFileAsync({ html });
 
       if (StorageAccessFramework) {
@@ -183,14 +217,25 @@ export default function App() {
     }
   };
 
-  // 1. Preview Screen
+  // 1. Preview Screen (and Cropper)
   if (capturedImage) {
-    // On Web, if printing, show clean view (optional but safer)
     if (printing && Platform.OS === 'web') {
       return (
         <View style={{ flex: 1, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#3498db" />
         </View>
+      );
+    }
+
+    if (isCropping) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'black' }}>
+          <ImageCropper
+            imageUri={capturedImage.uri}
+            onCancel={() => setIsCropping(false)}
+            onCrop={handleCrop}
+          />
+        </SafeAreaView>
       );
     }
 
@@ -214,19 +259,29 @@ export default function App() {
               <Text style={styles.controlLabel}>Rotar</Text>
             </TouchableOpacity>
 
-            {/* Placeholder for Crop - user asked for it but standard gesture crop is complex. 
-                        We will keep the button but maybe implement a simple center crop or disable it if 
-                        ImageManipulator UI is not available.
-                        For now, since user asked for "Crop", I will show the button but make it do a 
-                        "Center Crop" or just leave it out until we can use a library?
-                        NO, user specifically asked "me gustaria que a la preview se la permita recortar (crop)".
-                        I'll leave it out for this immediate fix to ensure stability of the critical PDF bug first. 
-                        (I removed the button in the code above).
-                    */}
-            {/* <TouchableOpacity style={[styles.controlButton, { opacity: 0.5 }]}>
-                         <MaterialIcons name="crop" size={30} color="#bdc3c7" />
-                         <Text style={[styles.controlLabel, { color: '#bdc3c7' }]}>Recortar</Text>
-                    </TouchableOpacity> */}
+            <TouchableOpacity
+              onPress={() => {
+                if (rotation !== 0) {
+                  setProcessing(true);
+                  ImageManipulator.manipulateAsync(
+                    capturedImage.uri,
+                    [{ rotate: rotation }],
+                    { base64: true }
+                  ).then(res => {
+                    setCapturedImage(res);
+                    setRotation(0);
+                    setProcessing(false);
+                    setIsCropping(true);
+                  });
+                } else {
+                  setIsCropping(true);
+                }
+              }}
+              style={styles.controlButton}
+            >
+              <MaterialIcons name="crop" size={30} color="#3498db" />
+              <Text style={styles.controlLabel}>Recortar</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity onPress={discardImage} style={styles.controlButton}>
               <MaterialIcons name="delete" size={30} color="#e74c3c" />
