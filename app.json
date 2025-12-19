@@ -4,7 +4,7 @@
     "slug": "scan",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo_minimal.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -19,7 +19,7 @@
       "package": "com.nicosubealanube.scan",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logo_minimal.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true
