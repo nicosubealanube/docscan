@@ -6,7 +6,7 @@ import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
-import ImageCropper from './components/ImageCropper';
+
 
 const { StorageAccessFramework } = FileSystem;
 
@@ -18,7 +18,7 @@ export default function App() {
   const [capturedImage, setCapturedImage] = useState(null);
   const [rotation, setRotation] = useState(0);
   const [printing, setPrinting] = useState(false);
-  const [isCropping, setIsCropping] = useState(false);
+
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -68,37 +68,7 @@ export default function App() {
     setIsCameraOpen(true);
   };
 
-  const handleCrop = async (cropData) => {
-    setIsCropping(false);
-    setProcessing(true);
-    try {
-      // Rotate first if needed (should have been handled before entering crop, but double check)
-      let sourceUri = capturedImage.uri;
-      if (rotation !== 0) {
-        const rotated = await ImageManipulator.manipulateAsync(
-          sourceUri,
-          [{ rotate: rotation }],
-          { base64: true }
-        );
-        sourceUri = rotated.uri;
-        setRotation(0);
-      }
 
-      // Perform Crop
-      const cropped = await ImageManipulator.manipulateAsync(
-        sourceUri,
-        [{ crop: cropData }],
-        { base64: true, compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
-
-      setCapturedImage(cropped);
-    } catch (e) {
-      console.error("Crop error", e);
-      Alert.alert("Error", "No se pudo recortar la imagen.");
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const processImageForSave = async () => {
     // If rotation is still pending (user didn't crop), apply it now
@@ -227,17 +197,7 @@ export default function App() {
       );
     }
 
-    if (isCropping) {
-      return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'black' }}>
-          <ImageCropper
-            imageUri={capturedImage.uri}
-            onCancel={() => setIsCropping(false)}
-            onCrop={handleCrop}
-          />
-        </SafeAreaView>
-      );
-    }
+
 
     return (
       <SafeAreaView style={styles.container}>
@@ -259,29 +219,7 @@ export default function App() {
               <Text style={styles.controlLabel}>Rotar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => {
-                if (rotation !== 0) {
-                  setProcessing(true);
-                  ImageManipulator.manipulateAsync(
-                    capturedImage.uri,
-                    [{ rotate: rotation }],
-                    { base64: true }
-                  ).then(res => {
-                    setCapturedImage(res);
-                    setRotation(0);
-                    setProcessing(false);
-                    setIsCropping(true);
-                  });
-                } else {
-                  setIsCropping(true);
-                }
-              }}
-              style={styles.controlButton}
-            >
-              <MaterialIcons name="crop" size={30} color="#3498db" />
-              <Text style={styles.controlLabel}>Recortar</Text>
-            </TouchableOpacity>
+
 
             <TouchableOpacity onPress={discardImage} style={styles.controlButton}>
               <MaterialIcons name="delete" size={30} color="#e74c3c" />
